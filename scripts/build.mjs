@@ -1,4 +1,4 @@
-import { rm, watch } from "node:fs/promises";
+const { rm, watch } = require("node:fs/promises");
 import { parseArgs } from "node:util";
 import rendererHtml from "@/renderer/index.html";
 import { type Subprocess, build, file, serve, spawn } from "bun";
