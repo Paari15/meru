@@ -1,14 +1,21 @@
 import path from "node:path";
+import { appState } from "@/app-state";
 import { config } from "@/lib/config";
+import { platform } from "@electron-toolkit/utils";
 import { BrowserWindow, app, nativeTheme } from "electron";
-import { is } from "electron-util";
 
 export class Main {
+	static shouldLaunchMinimized() {
+		return (
+			app.commandLine.hasSwitch("launch-minimized") ||
+			config.get("launchMinimized") ||
+			app.getLoginItemSettings().wasOpenedAtLogin
+		);
+	}
+
 	window: BrowserWindow;
 
 	title = "";
-
-	ready: Promise<void>;
 
 	listeners = {
 		titleChanged: new Set<(title: string) => void>(),
@@ -25,7 +32,7 @@ export class Main {
 			height: lastWindowState.bounds.height,
 			x: lastWindowState.bounds.x,
 			y: lastWindowState.bounds.y,
-			fullscreen: lastWindowState.fullscreen,
+			show: false,
 			titleBarStyle: "hiddenInset",
 			darkTheme: nativeTheme.shouldUseDarkColors,
 			webPreferences: {
@@ -37,17 +44,57 @@ export class Main {
 					"preload.js",
 				),
 			},
-			icon: is.linux ? path.join("assets", "icon.png") : undefined,
+			icon: platform.isLinux
+				? path.join(__dirname, "..", "static", "icon.png")
+				: undefined,
 		});
 
-		this.ready = new Promise<void>((resolve) => {
-			this.window.webContents.once("dom-ready", resolve);
-		});
+		if (!Main.shouldLaunchMinimized()) {
+			this.window.once("ready-to-show", () => {
+				this.window.show();
+			});
+		}
+
+		if (lastWindowState.fullscreen) {
+			this.window.setFullScreen(true);
+		}
 
 		if (lastWindowState.maximized) {
 			this.window.maximize();
 		}
 
+		this.load();
+
+		if (!platform.isMacOS) {
+			const autoHideMenuBar = config.get("autoHideMenuBar");
+
+			this.window.setMenuBarVisibility(!autoHideMenuBar);
+
+			this.window.autoHideMenuBar = autoHideMenuBar;
+		}
+
+		this.window.on("close", (event) => {
+			// Workaround: Closing the main window when on full screen leaves a black screen
+			// https://github.com/electron/electron/issues/20263
+			if (platform.isMacOS && this.window.isFullScreen()) {
+				this.window.once("leave-full-screen", () => {
+					this.window.hide();
+				});
+
+				this.window.setFullScreen(false);
+			}
+
+			if (!appState.isQuitting) {
+				event.preventDefault();
+
+				this.window.blur();
+
+				this.window.hide();
+			}
+		});
+	}
+
+	load() {
 		if (process.env.NODE_ENV === "production") {
 			this.window.webContents.loadFile(
 				path.join("out", "renderer", "index.html"),
@@ -59,12 +106,6 @@ export class Main {
 				mode: "detach",
 			});
 		}
-	}
-
-	async whenReady() {
-		await this.ready;
-
-		return this;
 	}
 
 	onTitleChanged(listener: (title: string) => void) {
@@ -85,5 +126,13 @@ export class Main {
 		this.title = title;
 
 		this.emitTitleChanged(title);
+	}
+
+	show() {
+		if (this.window.isMinimized()) {
+			this.window.restore();
+		} else {
+			this.window.show();
+		}
 	}
 }

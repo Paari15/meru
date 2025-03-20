@@ -1,7 +1,7 @@
 import { APP_TOOLBAR_HEIGHT } from "@/lib/constants";
 import { XIcon } from "lucide-react";
 import { useGmailVisible } from "../lib/hooks";
-import { trpc } from "../lib/trpc";
+import { emitter } from "../lib/ipc";
 import { Accounts } from "./accounts";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -9,9 +9,7 @@ import { ScrollArea } from "./ui/scroll-area";
 export function AppMain() {
 	const gmailVisible = useGmailVisible();
 
-	const gmailToggleVisible = trpc.gmail.toggleVisible.useMutation();
-
-	if (gmailVisible.data) {
+	if (typeof gmailVisible.data !== "boolean" || gmailVisible.data) {
 		return;
 	}
 
@@ -31,7 +29,7 @@ export function AppMain() {
 				size="icon"
 				className="size-7 absolute top-1.5 right-2"
 				onClick={() => {
-					gmailToggleVisible.mutate();
+					emitter.send("toggleGmailVisible");
 				}}
 			>
 				<XIcon />

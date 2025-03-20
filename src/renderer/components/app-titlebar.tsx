@@ -8,12 +8,12 @@ import type { HTMLAttributes } from "react";
 import { APP_SIDEBAR_WIDTH, APP_TOOLBAR_HEIGHT } from "../../lib/constants";
 import {
 	useAccounts,
-	useAppTitle,
 	useGmailNavigationHistory,
 	useGmailVisible,
 	useIsWindowMaximized,
+	useTitle,
 } from "../lib/hooks";
-import { trpc } from "../lib/trpc";
+import { emitter } from "../lib/ipc";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { CloseIcon, MaximizeIcon, MinimizeIcon, RestoreIcon } from "./ui/icons";
@@ -33,7 +33,6 @@ function WindowControlButton({
 }
 
 function WindowControls() {
-	const controlWindow = trpc.window.control.useMutation();
 	const isWindowMaximized = useIsWindowMaximized();
 
 	return (
@@ -42,12 +41,15 @@ function WindowControls() {
 			// @ts-expect-error
 			style={{ appRegion: "none" }}
 		>
-			<WindowControlButton onClick={() => controlWindow.mutate("minimize")}>
+			<WindowControlButton
+				onClick={() => emitter.send("controlWindow", "minimize")}
+			>
 				<MinimizeIcon />
 			</WindowControlButton>
 			<WindowControlButton
 				onClick={() =>
-					controlWindow.mutate(
+					emitter.send(
+						"controlWindow",
 						isWindowMaximized.data ? "unmaximize" : "maximize",
 					)
 				}
@@ -56,7 +58,7 @@ function WindowControls() {
 			</WindowControlButton>
 			<WindowControlButton
 				className="hover:bg-destructive/90"
-				onClick={() => controlWindow.mutate("close")}
+				onClick={() => emitter.send("controlWindow", "close")}
 			>
 				<CloseIcon />
 			</WindowControlButton>
@@ -64,12 +66,8 @@ function WindowControls() {
 	);
 }
 
-function TitlebarSpacer() {
-	return <div style={{ width: APP_SIDEBAR_WIDTH }} />;
-}
-
 function TitlebarTitle() {
-	const appTitle = useAppTitle();
+	const title = useTitle();
 	const gmailVisible = useGmailVisible();
 
 	if (!gmailVisible.data) {
@@ -78,15 +76,13 @@ function TitlebarTitle() {
 
 	return (
 		<div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-xs pointer-events-none">
-			{appTitle.data}
+			{title.data}
 		</div>
 	);
 }
 
 function TitlebarNavigation() {
 	const gmailNavigationHistory = useGmailNavigationHistory();
-	const gmailNavigationHistoryGo = trpc.gmail.navigationHistoryGo.useMutation();
-	const gmailReload = trpc.gmail.reload.useMutation();
 	const gmailVisible = useGmailVisible();
 
 	return (
@@ -98,7 +94,9 @@ function TitlebarNavigation() {
 				// @ts-expect-error
 				appRegion: "none",
 				marginLeft:
-					window.platform === "darwin" ? APP_SIDEBAR_WIDTH : undefined,
+					window.electron.process.platform === "darwin"
+						? APP_SIDEBAR_WIDTH
+						: undefined,
 			}}
 		>
 			<Button
@@ -106,7 +104,7 @@ function TitlebarNavigation() {
 				size="icon"
 				className="size-7"
 				onClick={() => {
-					gmailNavigationHistoryGo.mutate("back");
+					emitter.send("goNavigationHistory", "back");
 				}}
 				disabled={!gmailNavigationHistory.data?.canGoBack}
 			>
@@ -117,7 +115,7 @@ function TitlebarNavigation() {
 				size="icon"
 				className="size-7"
 				onClick={() => {
-					gmailNavigationHistoryGo.mutate("forward");
+					emitter.send("goNavigationHistory", "forward");
 				}}
 				disabled={!gmailNavigationHistory.data?.canGoForward}
 			>
@@ -128,7 +126,7 @@ function TitlebarNavigation() {
 				size="icon"
 				className="size-7"
 				onClick={() => {
-					gmailReload.mutate();
+					emitter.send("reload");
 				}}
 			>
 				<RotateCwIcon />
@@ -138,8 +136,11 @@ function TitlebarNavigation() {
 }
 
 export function AppTitlebar() {
-	const gmailToggleVisible = trpc.gmail.toggleVisible.useMutation();
 	const accounts = useAccounts();
+
+	if (!accounts.data) {
+		return;
+	}
 
 	return (
 		<div
@@ -148,16 +149,10 @@ export function AppTitlebar() {
 				// @ts-expect-error
 				appRegion: "drag",
 			}}
-			className={cn("flex border-b select-none", {
-				relative: accounts.data.length === 1,
-			})}
+			className="flex border-b select-none relative"
 		>
 			<TitlebarTitle />
-			<div
-				className={cn("flex-1 flex justify-between px-2", {
-					relative: accounts.data.length > 1,
-				})}
-			>
+			<div className="flex-1 flex justify-between px-2">
 				<TitlebarNavigation />
 				<div
 					className="flex items-center gap-1"
@@ -169,14 +164,14 @@ export function AppTitlebar() {
 						size="icon"
 						className="size-7"
 						onClick={() => {
-							gmailToggleVisible.mutate();
+							emitter.send("toggleGmailVisible");
 						}}
 					>
 						<SettingsIcon />
 					</Button>
 				</div>
 			</div>
-			{window.platform !== "darwin" && <WindowControls />}
+			{window.electron.process.platform !== "darwin" && <WindowControls />}
 		</div>
 	);
 }

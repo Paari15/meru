@@ -1,5 +1,6 @@
 import path from "node:path";
-import { config, getSelectedAccount } from "@/lib/config";
+import { getSelectedAccount } from "@/lib/accounts";
+import { config } from "@/lib/config";
 import type { Account } from "@/lib/config/types";
 import {
 	APP_SIDEBAR_WIDTH,
@@ -9,6 +10,7 @@ import {
 import { openExternalUrl } from "@/lib/url";
 import type { Main } from "@/main";
 import { WebContentsView } from "electron";
+import type { RendererEvent } from "./preload/ipc";
 import gmailStyles from "./styles.css" with { type: "text" };
 
 export type GmailNavigationHistory = {
@@ -28,7 +30,7 @@ export class Gmail {
 	views = new Map<string, WebContentsView>();
 	visible = true;
 
-	listeners = {
+	private listeners = {
 		navigationHistoryChanged: new Set<GmailNavigationHistoryChangedListener>(),
 		visibleChanged: new Set<GmailVisibleChangedListener>(),
 	};
@@ -56,6 +58,71 @@ export class Gmail {
 				});
 			}
 		});
+
+		main.window.on("focus", () => {
+			const selectedAccount = getSelectedAccount();
+
+			const view = this.getView(selectedAccount);
+
+			view.webContents.focus();
+		});
+	}
+
+	createView(account: Account) {
+		const view = new WebContentsView({
+			webPreferences: {
+				partition: this.getPartition(account),
+				preload: path.join(
+					...(process.env.NODE_ENV === "production"
+						? [__dirname]
+						: [process.cwd(), "out"]),
+					"gmail",
+					"preload",
+					"index.js",
+				),
+			},
+		});
+
+		this.main.window.contentView.addChildView(view);
+
+		const accounts = config.get("accounts");
+
+		const { width, height } = this.main.window.getBounds();
+
+		this.setViewBounds({
+			view,
+			width,
+			height,
+			sidebarInset: accounts.length > 1,
+		});
+
+		view.setVisible(this.visible && account.selected);
+
+		view.webContents.loadURL(GMAIL_URL);
+
+		if (process.env.NODE_ENV !== "production") {
+			view.webContents.openDevTools();
+		}
+
+		view.webContents.setWindowOpenHandler(({ url }) => {
+			openExternalUrl(url);
+
+			return {
+				action: "deny",
+			};
+		});
+
+		view.webContents.on("dom-ready", () => {
+			if (view.webContents.getURL().startsWith(GMAIL_URL)) {
+				view.webContents.insertCSS(gmailStyles);
+			}
+		});
+
+		if (account.selected) {
+			this.setViewListeners(view);
+		}
+
+		this.views.set(account.id, view);
 	}
 
 	getPartition(account: Account) {
@@ -151,58 +218,6 @@ export class Gmail {
 		view.removeAllListeners();
 	}
 
-	createView(account: Account) {
-		const view = new WebContentsView({
-			webPreferences: {
-				partition: this.getPartition(account),
-				preload: path.join(
-					...(process.env.NODE_ENV === "production"
-						? [__dirname]
-						: [process.cwd(), "out"]),
-					"gmail",
-					"preload.js",
-				),
-			},
-		});
-
-		this.main.window.contentView.addChildView(view);
-
-		const accounts = config.get("accounts");
-
-		const { width, height } = this.main.window.getBounds();
-
-		this.setViewBounds({
-			view,
-			width,
-			height,
-			sidebarInset: accounts.length > 1,
-		});
-
-		view.setVisible(this.visible && account.selected);
-
-		view.webContents.loadURL(GMAIL_URL);
-		view.webContents.openDevTools();
-		view.webContents.setWindowOpenHandler(({ url }) => {
-			openExternalUrl(url);
-
-			return {
-				action: "deny",
-			};
-		});
-
-		view.webContents.on("dom-ready", () => {
-			if (view.webContents.getURL().startsWith(GMAIL_URL)) {
-				view.webContents.insertCSS(gmailStyles);
-			}
-		});
-
-		if (account.selected) {
-			this.setViewListeners(view);
-		}
-
-		this.views.set(account.id, view);
-	}
-
 	setVisible(visible: boolean) {
 		this.visible = visible;
 
@@ -241,8 +256,8 @@ export class Gmail {
 		}
 	}
 
-	removeView(account: Pick<Account, "id">) {
-		const view = this.views.get(account.id);
+	removeView(accountId: Account["id"]) {
+		const view = this.views.get(accountId);
 
 		if (!view) {
 			throw new Error("View not found");
@@ -251,7 +266,7 @@ export class Gmail {
 		view.webContents.close();
 		view.webContents.removeAllListeners();
 		this.main.window.contentView.removeChildView(view);
-		this.views.delete(account.id);
+		this.views.delete(accountId);
 	}
 
 	selectView(account: Account) {
@@ -283,8 +298,12 @@ export class Gmail {
 		return view;
 	}
 
+	getSelectedView() {
+		return this.getView(getSelectedAccount());
+	}
+
 	getNavigationHistory() {
-		const view = this.getView(getSelectedAccount());
+		const view = this.getSelectedView();
 
 		return {
 			canGoBack: view.webContents.navigationHistory.canGoBack(),
@@ -295,21 +314,23 @@ export class Gmail {
 	go(action: "back" | "forward") {
 		switch (action) {
 			case "back": {
-				this.getView(
-					getSelectedAccount(),
-				).webContents.navigationHistory.goBack();
+				this.getSelectedView().webContents.navigationHistory.goBack();
 				break;
 			}
 			case "forward": {
-				this.getView(
-					getSelectedAccount(),
-				).webContents.navigationHistory.goForward();
+				this.getSelectedView().webContents.navigationHistory.goForward();
 				break;
 			}
 		}
 	}
 
 	reload() {
-		this.getView(getSelectedAccount()).webContents.reload();
+		this.getSelectedView().webContents.reload();
+	}
+
+	sendToRenderer(event: RendererEvent) {
+		const view = this.getSelectedView();
+
+		view.webContents.send("ipc", event);
 	}
 }
