@@ -5,6 +5,7 @@
 	"private": true,
 	"description": "Nifty Gmail desktop app",
 	"author": "Tim Cheung <tim@cheung.io>",
+	"type": "module"
 	"repository": "timche/meru",
 	"main": "out/app.js",
 	"scripts": {
