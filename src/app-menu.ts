@@ -19,6 +19,7 @@ import {
 } from "./lib/accounts";
 import { config } from "./lib/config";
 import { GITHUB_REPO_URL } from "./lib/constants";
+import { showRestartDialog } from "./lib/dialogs";
 import { openExternalUrl } from "./lib/url";
 import type { Main } from "./main";
 
@@ -123,7 +124,7 @@ export class AppMenu {
 										click: () => {
 											config.set("titleBarStyle", "app");
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 									{
@@ -133,7 +134,7 @@ export class AppMenu {
 										click: () => {
 											config.set("titleBarStyle", "system");
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 								],
@@ -156,7 +157,7 @@ export class AppMenu {
 										click: ({ checked }) => {
 											config.set("downloadsSaveAs", checked);
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 									{
@@ -166,7 +167,7 @@ export class AppMenu {
 										click: ({ checked }) => {
 											config.set("downloads.openFolderWhenDone", checked);
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 									{
@@ -185,7 +186,7 @@ export class AppMenu {
 
 											config.set("downloads.location", filePaths[0]);
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 								],
@@ -282,7 +283,7 @@ export class AppMenu {
 								click: ({ checked }: { checked: boolean }) => {
 									config.set("trayIcon.enabled", checked);
 
-									this.showRestartDialog();
+									showRestartDialog();
 								},
 							},
 							{
@@ -315,7 +316,7 @@ export class AppMenu {
 								click: ({ checked }: { checked: boolean }) => {
 									config.set("app.hardwareAcceleration", checked);
 
-									this.showRestartDialog();
+									showRestartDialog();
 								},
 							},
 							{
@@ -328,7 +329,7 @@ export class AppMenu {
 										click: ({ checked }) => {
 											config.set("blocker.enabled", checked);
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 									{
@@ -341,7 +342,7 @@ export class AppMenu {
 										click: ({ checked }) => {
 											config.set("blocker.ads", checked);
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 									{
@@ -351,7 +352,7 @@ export class AppMenu {
 										click: ({ checked }) => {
 											config.set("blocker.analytics", checked);
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 									{
@@ -361,7 +362,7 @@ export class AppMenu {
 										click: ({ checked }) => {
 											config.set("blocker.trackers", checked);
 
-											this.showRestartDialog();
+											showRestartDialog();
 										},
 									},
 								],
@@ -396,10 +397,11 @@ export class AppMenu {
 						label: "Gmail Settings",
 						accelerator: "Command+,",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "settings",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"settings",
+							);
 
 							this.main.show();
 						},
@@ -423,7 +425,11 @@ export class AppMenu {
 					{
 						label: "Compose",
 						click: () => {
-							this.gmail.sendToRenderer({ type: "compose-email" });
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"compose",
+							);
 
 							this.main.show();
 						},
@@ -651,10 +657,11 @@ export class AppMenu {
 					{
 						label: "Inbox",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "inbox",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"inbox",
+							);
 
 							this.main.show();
 						},
@@ -662,10 +669,11 @@ export class AppMenu {
 					{
 						label: "Important",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "important",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"imp",
+							);
 
 							this.main.show();
 						},
@@ -673,10 +681,11 @@ export class AppMenu {
 					{
 						label: "Snoozed",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "inbox",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"snoozed",
+							);
 
 							this.main.show();
 						},
@@ -684,10 +693,11 @@ export class AppMenu {
 					{
 						label: "Starred",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "starred",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"starred",
+							);
 
 							this.main.show();
 						},
@@ -698,10 +708,11 @@ export class AppMenu {
 					{
 						label: "Drafts",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "drafts",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"drafts",
+							);
 
 							this.main.show();
 						},
@@ -709,10 +720,11 @@ export class AppMenu {
 					{
 						label: "Scheduled",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "scheduled",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"scheduled",
+							);
 
 							this.main.show();
 						},
@@ -720,10 +732,35 @@ export class AppMenu {
 					{
 						label: "Sent",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "sent",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"sent",
+							);
+
+							this.main.show();
+						},
+					},
+					{
+						label: "Spam",
+						click: () => {
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"spam",
+							);
+
+							this.main.show();
+						},
+					},
+					{
+						label: "Bin",
+						click: () => {
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"trash",
+							);
 
 							this.main.show();
 						},
@@ -734,10 +771,11 @@ export class AppMenu {
 					{
 						label: "All Mail",
 						click: () => {
-							this.gmail.sendToRenderer({
-								type: "go-to",
-								destination: "all",
-							});
+							this.gmail.emitter.send(
+								this.gmail.getSelectedView().webContents,
+								"navigateTo",
+								"all",
+							);
 
 							this.main.show();
 						},
@@ -831,7 +869,7 @@ export class AppMenu {
 								click: () => {
 									config.clear();
 
-									this.showRestartDialog();
+									showRestartDialog();
 								},
 							},
 							{
@@ -844,7 +882,7 @@ export class AppMenu {
 										session.fromPartition(`persist:${id}`).clearCache();
 									}
 
-									this.showRestartDialog();
+									showRestartDialog();
 								},
 							},
 							{
@@ -856,7 +894,7 @@ export class AppMenu {
 
 									config.clear();
 
-									this.showRestartDialog();
+									showRestartDialog();
 								},
 							},
 							{
@@ -875,21 +913,5 @@ export class AppMenu {
 		];
 
 		return Menu.buildFromTemplate(template);
-	}
-
-	async showRestartDialog() {
-		const { response } = await dialog.showMessageBox({
-			type: "info",
-			buttons: ["Restart", "Later"],
-			message: "Restart required to apply changes",
-			detail: "Do you want to restart the app now?",
-			defaultId: 0,
-			cancelId: 1,
-		});
-
-		if (response === 0) {
-			app.relaunch();
-			app.quit();
-		}
 	}
 }
